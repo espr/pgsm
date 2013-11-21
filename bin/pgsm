@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+
+var path = require('path');
+var cmdr = require('commander');
+var Pgsm = require('../');
+
+cmdr
+  .version(require("../package.json").version)
+  .option('-a, --adapter <path>', 'path to database adapter (js file)', path.join(process.cwd(), "db"))
+  .option('-m, --migrations <path>', 'path to migrations folder', path.join(process.cwd(), "db/migrations"));
+
+cmdr
+  .command("create [name]")
+  .description("Creates a boiler-plate migration.")
+  .action(function(name){
+    Pgsm(opts()).create(name, function(){
+      opts().db.end();
+    });
+  });
+
+cmdr
+  .command("migrate")
+  .description("Runs migrations to the latest version.")
+  .action(function(name){
+    Pgsm(opts()).migrate(function(err){
+      opts().db.end();
+      if (err) throw err;
+    });
+  });
+
+cmdr
+  .command("rollback [timestamp]")
+  .description("Rollback migration(s)")
+  .action(function(ts){
+    Pgsm(opts()).rollback(ts, function(err){
+      opts().db.end();
+      if (err) throw err;
+    })
+  });
+
+cmdr
+  .command("info")
+  .description("Outputs the information about the current db.")
+  .action(function(name){
+    Pgsm(opts()).getVersion(function(err, version){
+      opts().db.end();
+      if (err) throw err;
+      Pgsm.log("db version: "+version);
+    });
+  });
+
+cmdr.parse(process.argv);
+
+if (process.argv.length <= 2) {
+  Pgsm.log("usage: pgsm [options] command")
+}
+
+var _opts;
+function opts(){
+  return _opts || (_opts = {
+    db: require(cmdr.adapter),
+    migrationsPath: cmdr.migrations
+  });
+}
