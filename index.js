@@ -37,20 +37,26 @@ pgsm.prototype.migrate = function(cb) {
       cb();
     } else {
       var highestVersion = currentVersion;
-      var migrateDone = function(){
-        this.setVersion(highestVersion, function(err){
+      var updateVersion = function(nv, ncb){
+        this.setVersion(nv, function(err){
           if (err) return cb(err);
-          Pgsm.log("db now at version "+highestVersion);
-          cb();
+          ncb();
         });
       }.bind(this);
+      var migrateDone = function(){
+        Pgsm.log("db now at version "+highestVersion);
+        cb();
+      }.bind(this);
       var migrateFns = newMigrations.map(function(m){
-        Pgsm.log("running migration: "+m);
         return function(){
+          Pgsm.log("running migration: "+m);
           _db.query(_readMigration(path.join(mp,m)).up, function(err, res){
             if (err) return cb(err);
             highestVersion = _getMigrationVersion(m);
-            (migrateFns.shift()||migrateDone)();
+            updateVersion(highestVersion, function(){
+              if (err) return cb(err);
+              (migrateFns.shift()||migrateDone)();
+            });
           });
         };
       });
@@ -80,26 +86,32 @@ pgsm.prototype.rollback = function(ts, cb) {
     }
 
     var rollbackMigrations = migrationsDir.filter(function(d){
-      return targetVersion < _getMigrationVersion(d);
-    });
+      var mv = _getMigrationVersion(d)
+      return targetVersion < mv && mv <= currentVersion;
+    }).reverse();
 
     if (rollbackMigrations.length===0) {
       Pgsm.log("no migrations to rollback, db at version "+currentVersion);
       cb();
     } else {
-      var migrateDone = function(){
-        this.setVersion(targetVersion, function(err){
+      var updateVersion = function(nv, ncb){
+        this.setVersion(nv, function(err){
           if (err) return cb(err);
-          Pgsm.log("db now at version "+targetVersion);
-          cb();
+          ncb();
         });
       }.bind(this);
+      var migrateDone = function(){
+          Pgsm.log("db now at version "+targetVersion);
+          cb();
+      }.bind(this);
       var migrateFns = rollbackMigrations.map(function(m){
-        Pgsm.log("rolling back migration: "+m);
         return function(){
+          Pgsm.log("rolling back migration: "+m);
           _db.query(_readMigration(path.join(mp,m)).down, function(err, res){
             if (err) return cb(err);
-            (migrateFns.shift()||migrateDone)();
+            updateVersion(targetVersion, function(){
+              (migrateFns.shift()||migrateDone)();
+            });
           });
         };
       });

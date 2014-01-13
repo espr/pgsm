@@ -1,7 +1,7 @@
 {
   "name": "pgsm",
   "description": "simple migrations for postgresql",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "author": "espr <espr@newcu.be>",
   "repository": "https://github.com/espr/pgsm.git",
   "bin": {
